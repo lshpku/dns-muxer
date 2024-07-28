@@ -36,7 +36,7 @@ func main() {
 		log.Fatal("No listener is specified")
 	}
 
-	startDoTHandler()
+	go runDoTClient()
 
 	select {}
 }

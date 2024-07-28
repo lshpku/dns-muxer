@@ -32,12 +32,7 @@ func (q *DNSQuery) done(err error) {
 var udpFwdAddr *net.UDPAddr
 
 func forwardUDPQuery(payload []byte) ([]byte, error) {
-	fwdAddr, err := net.ResolveUDPAddr("udp", *flagFwdLocal)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	conn, err := net.DialUDP("udp", nil, fwdAddr)
+	conn, err := net.Dial("udp", *flagFwdLocal)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +94,7 @@ func handleUDPQuery(query *DNSQuery) {
 		udpReplyChan <- udpReply{payload, query.srcAddr}
 		query.done(nil)
 	}
-	DoTChan <- &DoTQuery{query.payload, callback, 3}
+	makeDoTQuery(query.payload, callback)
 }
 
 func startUDPListener(address string) {

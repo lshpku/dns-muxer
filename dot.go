@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/binary"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -18,14 +17,11 @@ type DoTQuery struct {
 var DoTChan = make(chan *DoTQuery, 16)
 
 func makeDoTQuery(payload []byte, callback func([]byte, error)) {
-	query := &DoTQuery{
-		payload:  make([]byte, 2+len(payload)),
+	DoTChan <- &DoTQuery{
+		payload:  payload,
 		callback: callback,
 		retry:    3,
 	}
-	binary.BigEndian.PutUint16(query.payload, uint16(len(payload)))
-	copy(query.payload[2:], payload)
-	DoTChan <- query
 }
 
 type DoTClient struct {
@@ -42,7 +38,7 @@ func (c *DoTClient) runReader() {
 	// Read replies and callback on queries
 	for {
 		var payload []byte
-		payload, err = readTCPQuery(c.conn)
+		payload, err = readTCPMessage(c.conn)
 		if err != nil {
 			break
 		}
@@ -132,7 +128,7 @@ func runDoTClient() {
 
 		// Try to forward the query.
 		// Close the client if Write fails.
-		if _, err := client.conn.Write(query.payload); err == nil {
+		if err := writeTCPMessage(client.conn, query.payload); err == nil {
 			log.Debug("sending query", len(query.payload))
 			client.queries <- query
 		} else {
