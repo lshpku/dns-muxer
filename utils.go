@@ -68,6 +68,8 @@ func parseDNSDomain(buf []byte) (string, error) {
 	return "", errors.New("no question")
 }
 
+// socks5Handshake establishes a connection to address:port.
+// Refer: https://en.wikipedia.org/wiki/SOCKS#SOCKS5
 func socks5Handshake(conn net.Conn, address string, port int) error {
 	data := []byte("\x05\x01\x00\x05\x01\x00\x03")
 	data = append(data, byte(len(address)))
@@ -93,7 +95,12 @@ func socks5Handshake(conn net.Conn, address string, port int) error {
 }
 
 // queryCN queries whether it is a CN domain.
+// It returns true if there is any error during the query.
 func queryCN(domain string) bool {
+	if domain == "" {
+		return true
+	}
+
 	conn, err := net.Dial("tcp", *flagQueryCN)
 	if err != nil {
 		log.Error("query cn:", err)
@@ -114,9 +121,10 @@ func queryCN(domain string) bool {
 
 	// Socks returns 12 bytes for CN and >12 bytes for non-CN
 	buf := make([]byte, 13)
-	if _, err = io.ReadFull(conn, buf); err == nil {
+	if n, err := io.ReadFull(conn, buf); err == nil {
 		return false
+	} else if n != 12 {
+		log.Error("query cn:", err)
 	}
-
 	return true
 }
