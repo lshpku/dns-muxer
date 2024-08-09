@@ -29,10 +29,8 @@ func (q *DNSQuery) done(err error) {
 	}
 }
 
-var udpFwdAddr *net.UDPAddr
-
 func forwardUDPQuery(payload []byte) ([]byte, error) {
-	conn, err := net.Dial("udp", *flagFwdLocal)
+	conn, err := net.DialUDP("udp", nil, udpFwdAddr)
 	if err != nil {
 		return nil, err
 	}

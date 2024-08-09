@@ -17,7 +17,6 @@ func readTCPMessage(conn net.Conn) ([]byte, error) {
 
 	// read payload
 	payload := make([]byte, size)
-	copy(payload, buf)
 	n, err := io.ReadFull(conn, payload)
 	if err != nil {
 		return payload[:n], err
@@ -27,19 +26,19 @@ func readTCPMessage(conn net.Conn) ([]byte, error) {
 }
 
 func writeTCPMessage(conn net.Conn, payload []byte) error {
-	size := make([]byte, 2)
-	binary.BigEndian.PutUint16(size, uint16(len(payload)))
-	if _, err := conn.Write(size); err != nil {
-		return err
-	}
-	if _, err := conn.Write(payload); err != nil {
+	// According to https://www.rfc-editor.org/rfc/rfc7766#section-8, the
+	// length field and the message SHOULD be sent at the same time.
+	buf := make([]byte, 2+len(payload))
+	binary.BigEndian.PutUint16(buf, uint16(len(payload)))
+	copy(buf[2:], payload)
+	if _, err := conn.Write(buf); err != nil {
 		return err
 	}
 	return nil
 }
 
 func forwardTCPQuery(payload []byte) ([]byte, error) {
-	conn, err := net.Dial("tcp", *flagFwdLocal)
+	conn, err := net.DialTCP("tcp", nil, tcpFwdAddr)
 	if err != nil {
 		return nil, err
 	}

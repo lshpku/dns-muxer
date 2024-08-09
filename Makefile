@@ -10,4 +10,4 @@ darwin-amd64: *.go
 	GOOS=darwin GOARCH=amd64 go build -o bin/dnsmuxer-$@ .
 
 clean:
-	rm -f dns_muxer
+	rm -rf bin
