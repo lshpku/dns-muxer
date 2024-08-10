@@ -9,6 +9,7 @@ import (
 	syslog "log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -61,12 +62,30 @@ func (l *Logger) Fatal(a ...any) { l.lprintln(1, "[FATA]", a...); os.Exit(1) }
 
 var log = Logger{4}
 
+func recType2Str(t int) string {
+	switch t {
+	case 1:
+		return "A"
+	case 2:
+		return "NS"
+	case 5:
+		return "CNAME"
+	case 28:
+		return "AAAA"
+	case 65:
+		return "HTTPS"
+	}
+	return strconv.Itoa(t)
+}
+
 // parseDNSDomain parses the DNS message for its domain.
 // Refer: https://en.wikipedia.org/wiki/Domain_Name_System#DNS_message_format
 func parseDNSDomain(buf []byte) (string, error) {
 	if len(buf) < 12 {
 		return "", errors.New("query too short")
 	}
+
+	// Read header
 	id := buf[0:2]
 	flags := buf[2:4]
 	numQuestions := binary.BigEndian.Uint16(buf[4:6])
@@ -74,31 +93,33 @@ func parseDNSDomain(buf []byte) (string, error) {
 	numAuthorityRRs := binary.BigEndian.Uint16(buf[8:10])
 	numAdditionalRRs := binary.BigEndian.Uint16(buf[10:12])
 
-	i := 12
-	for q := 0; q < int(numQuestions); q++ {
-		subds := make([]string, 0)
-		for buf[i] > 0 {
-			n := int(buf[i])
-			subds = append(subds, string(buf[i+1:i+1+n]))
-			i += n + 1
-		}
-		i++
-		domain := strings.Join(subds, ".")
-		qtype := binary.BigEndian.Uint16(buf[i : i+2])
-		class := binary.BigEndian.Uint16(buf[i+2 : i+4])
-		i += 4
-
-		if numAnswers > 0 || numAuthorityRRs > 0 || numAdditionalRRs > 0 {
-			idStr := fmt.Sprintf("0x%02x%02x", id[0], id[1])
-			flagStr := fmt.Sprintf("0x%02x%02x", flags[0], flags[1])
-			log.Debugf("ID=%s FLAGS=%s NUMS=%d,%d,%d,%d DOMAIN=%s TYPE=%d CLASS=%d",
-				idStr, flagStr, numQuestions, numAnswers, numAuthorityRRs, numAdditionalRRs,
-				domain, qtype, class)
-		}
-		return domain, nil
+	if numQuestions == 0 {
+		log.Debugf("ID=0x%02x%02x FLAG=0x%02x%02x NUMS=%d,%d,%d,%d NOQUESTION",
+			id[0], id[1], flags[0], flags[1],
+			numQuestions, numAnswers, numAuthorityRRs, numAdditionalRRs)
+		return "", nil
 	}
 
-	return "", errors.New("no question")
+	// Read the first question
+	i := 12
+	subds := make([]string, 0)
+	for buf[i] > 0 {
+		n := int(buf[i])
+		subds = append(subds, string(buf[i+1:i+1+n]))
+		i += n + 1
+	}
+	i++
+	domain := strings.Join(subds, ".")
+	recType := binary.BigEndian.Uint16(buf[i : i+2])
+	// class := binary.BigEndian.Uint16(buf[i+2 : i+4])
+	// i += 4
+
+	log.Debugf("ID=0x%02x%02x FLAG=0x%02x%02x NUMS=%d,%d,%d,%d DOMAIN=%s TYPE=%s",
+		id[0], id[1], flags[0], flags[1],
+		numQuestions, numAnswers, numAuthorityRRs, numAdditionalRRs,
+		domain, recType2Str(int(recType)))
+
+	return domain, nil
 }
 
 // socks5Handshake establishes a connection to address:port.
