@@ -12,21 +12,54 @@ import (
 	"strings"
 )
 
-type Logger struct{}
+type Logger struct {
+	level int
+}
 
-func (l *Logger) Debugf(fmt string, a ...any) {}
-func (l *Logger) Infof(fmt string, a ...any)  { syslog.Printf("[INFO] "+fmt, a...) }
-func (l *Logger) Warnf(fmt string, a ...any)  { syslog.Printf("[WARN] "+fmt, a...) }
-func (l *Logger) Errorf(fmt string, a ...any) { syslog.Printf("[ERRO] "+fmt, a...) }
-func (l *Logger) Fatalf(fmt string, a ...any) { syslog.Printf("[FATA] "+fmt, a...); os.Exit(1) }
+func (l *Logger) SetLogLevel(s string) error {
+	switch s {
+	case "none":
+		l.level = 0
+	case "fatal":
+		l.level = 1
+	case "error":
+		l.level = 2
+	case "warning":
+		l.level = 3
+	case "info":
+		l.level = 4
+	case "debug":
+		l.level = 5
+	default:
+		return errors.New("unknown log level: " + s)
+	}
+	return nil
+}
 
-func (l *Logger) Debug(a ...any) {}
-func (l *Logger) Info(a ...any)  { syslog.Println(append([]any{"[INFO]"}, a...)...) }
-func (l *Logger) Warn(a ...any)  { syslog.Println(append([]any{"[WARN]"}, a...)...) }
-func (l *Logger) Error(a ...any) { syslog.Println(append([]any{"[ERRO]"}, a...)...) }
-func (l *Logger) Fatal(a ...any) { syslog.Println(append([]any{"[FATA]"}, a...)...); os.Exit(1) }
+func (l *Logger) lprintf(level int, name, fmt string, a ...any) {
+	if l.level >= level {
+		syslog.Printf(name+" "+fmt, a...)
+	}
+}
+func (l *Logger) lprintln(level int, name string, a ...any) {
+	if l.level >= level {
+		syslog.Println(append([]any{name}, a...)...)
+	}
+}
 
-var log = Logger{}
+func (l *Logger) Debugf(fmt string, a ...any) { l.lprintf(5, "[DEBU]", fmt, a...) }
+func (l *Logger) Infof(fmt string, a ...any)  { l.lprintf(4, "[INFO]", fmt, a...) }
+func (l *Logger) Warnf(fmt string, a ...any)  { l.lprintf(3, "[WARN]", fmt, a...) }
+func (l *Logger) Errorf(fmt string, a ...any) { l.lprintf(2, "[ERRO]", fmt, a...) }
+func (l *Logger) Fatalf(fmt string, a ...any) { l.lprintf(1, "[FATA]", fmt, a...); os.Exit(1) }
+
+func (l *Logger) Debug(a ...any) { l.lprintln(5, "[DEBU]", a...) }
+func (l *Logger) Info(a ...any)  { l.lprintln(4, "[INFO]", a...) }
+func (l *Logger) Warn(a ...any)  { l.lprintln(3, "[WARN]", a...) }
+func (l *Logger) Error(a ...any) { l.lprintln(2, "[ERRO]", a...) }
+func (l *Logger) Fatal(a ...any) { l.lprintln(1, "[FATA]", a...); os.Exit(1) }
+
+var log = Logger{4}
 
 // parseDNSDomain parses the DNS message for its domain.
 // Refer: https://en.wikipedia.org/wiki/Domain_Name_System#DNS_message_format

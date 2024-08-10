@@ -14,6 +14,7 @@ var (
 	flagFwdUDP    = flag.String("forward-udp", "", "local DNS address (for UDP)")
 	flagFwdTCP    = flag.String("forward-tcp", "", "local DNS address (for TCP)")
 	flagFwdProxy  = flag.String("forward-proxy", "", "DoT proxy address")
+	flagLogLevel  = flag.String("log-level", "info", "set log level (none|error|warning|info|debug)")
 
 	udpFwdAddr *net.UDPAddr
 	tcpFwdAddr *net.TCPAddr
@@ -21,6 +22,10 @@ var (
 
 func main() {
 	flag.Parse()
+
+	if err := log.SetLogLevel(*flagLogLevel); err != nil {
+		log.Fatal(err)
+	}
 
 	chooseFirstAvail := func(a, b string) string {
 		if a != "" {
