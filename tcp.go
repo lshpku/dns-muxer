@@ -70,13 +70,12 @@ func handleTCPClient(conn net.Conn) {
 	}
 
 	// Forward query
-	query.cn = queryCN(query.domain)
 	var reply []byte
 	if query.cn {
 		reply, err = forwardTCPQuery(query.payload)
 	} else {
 		done := make(chan bool)
-		makeDoTQuery(payload, func(b []byte, e error) {
+		makeDoTQuery(query, func(b []byte, e error) {
 			reply = b
 			err = e
 			done <- true

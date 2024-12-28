@@ -9,16 +9,16 @@ import (
 
 // DoTQuery represents a query that is sent to the DoT server.
 type DoTQuery struct {
-	payload  []byte
+	*DNSQuery
 	callback func([]byte, error)
 	retry    int
 }
 
 var DoTChan = make(chan *DoTQuery, 16)
 
-func makeDoTQuery(payload []byte, callback func([]byte, error)) {
+func makeDoTQuery(query *DNSQuery, callback func([]byte, error)) {
 	DoTChan <- &DoTQuery{
-		payload:  payload,
+		DNSQuery: query,
 		callback: callback,
 		retry:    3,
 	}
@@ -128,10 +128,10 @@ func runDoTClient() {
 		// Try to forward the query.
 		// Close the client if Write fails.
 		if err := writeTCPMessage(client.conn, query.payload); err == nil {
-			log.Debug("sent DoT query:")
+			log.Debug("sent DoT query:", query)
 			client.queries <- query
 		} else {
-			log.Debug("failed to send DoT query:")
+			log.Debug("failed to send DoT query:", query)
 			if !client.closed.Swap(true) {
 				log.Info("DoT writer closed:", err)
 			}

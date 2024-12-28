@@ -66,7 +66,7 @@ func handleUDPQuery(srcAddr net.Addr, payload []byte) {
 		udpReplyChan <- udpReply{payload, query.srcAddr}
 		query.LogDone(err)
 	}
-	makeDoTQuery(query.payload, callback)
+	makeDoTQuery(query, callback)
 }
 
 func startUDPListener(address string) {
