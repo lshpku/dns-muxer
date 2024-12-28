@@ -1,33 +1,9 @@
 package main
 
-import "net"
-
-// DNSQuery represents a DNS query from client.
-type DNSQuery struct {
-	srcAddr net.Addr
-	payload []byte
-	domain  string
-	cn      bool
-	flacTC  bool
-}
-
-func (q *DNSQuery) done(err error) {
-	var cn string
-	if q.domain != "" {
-		if q.cn {
-			cn = "1"
-		} else {
-			cn = "0"
-		}
-	}
-	if err == nil {
-		log.Infof("SRC=%s/%s SIZE=%d DOMAIN=%s CN=%s",
-			q.srcAddr.String(), q.srcAddr.Network(), len(q.payload), q.domain, cn)
-	} else {
-		log.Errorf("SRC=%s/%s SIZE=%d DOMAIN=%s CN=%s %s",
-			q.srcAddr.String(), q.srcAddr.Network(), len(q.payload), q.domain, cn, err)
-	}
-}
+import (
+	"fmt"
+	"net"
+)
 
 func forwardUDPQuery(payload []byte) ([]byte, error) {
 	conn, err := net.DialUDP("udp", nil, udpFwdAddr)
@@ -56,41 +32,39 @@ type udpReply struct {
 
 var udpReplyChan = make(chan udpReply)
 
-func handleUDPQuery(query *DNSQuery) {
-	var err error
-	query.domain, err = parseDNSDomain(query.payload)
+func handleUDPQuery(srcAddr net.Addr, payload []byte) {
+	query, err := NewDNSQuery(srcAddr, payload)
 	if err != nil {
-		query.done(err)
+		query.LogDone(err)
 		return
 	}
 
 	// Forward to local server
-	query.cn = queryCN(query.domain)
 	if query.cn {
 		reply, err := forwardUDPQuery(query.payload)
 		if err != nil {
-			query.done(err)
+			query.LogDone(err)
 			return
 		}
 		udpReplyChan <- udpReply{reply, query.srcAddr}
-		query.done(nil)
+		query.LogDone(nil)
 		return
 	}
 
 	// Forward to DoT server
 	callback := func(payload []byte, err error) {
 		if err != nil {
-			query.done(err)
+			query.LogDone(err)
 			return
 		}
 		// Truncate the payload and add the TC flag if it exceeds 512 bytes
 		if len(payload) > 512 {
+			err = fmt.Errorf("truncated: %d", len(payload))
 			payload = payload[:512]
 			payload[2] |= 0x2
-			query.flacTC = true
 		}
 		udpReplyChan <- udpReply{payload, query.srcAddr}
-		query.done(nil)
+		query.LogDone(err)
 	}
 	makeDoTQuery(query.payload, callback)
 }
@@ -110,10 +84,7 @@ func startUDPListener(address string) {
 			if err != nil {
 				log.Fatal(err)
 			}
-			go handleUDPQuery(&DNSQuery{
-				payload: buf[:n],
-				srcAddr: addr,
-			})
+			go handleUDPQuery(addr, buf[:n])
 		}
 	}()
 

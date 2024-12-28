@@ -110,8 +110,6 @@ func runDoTClient() {
 	var client *DoTClient
 
 	for query := range DoTChan {
-		log.Debug("handling query", len(query.payload))
-
 		// Create a client if there is no client, or if the current client has
 		// been closed.
 		if client == nil || client.closed.Load() {
@@ -121,6 +119,7 @@ func runDoTClient() {
 			var err error
 			client, err = newDoTClient()
 			if err != nil {
+				log.Error("failed to new DoT client:", err)
 				retryQuery(query)
 				continue
 			}
@@ -129,9 +128,10 @@ func runDoTClient() {
 		// Try to forward the query.
 		// Close the client if Write fails.
 		if err := writeTCPMessage(client.conn, query.payload); err == nil {
-			log.Debug("sending query", len(query.payload))
+			log.Debug("sent DoT query:")
 			client.queries <- query
 		} else {
+			log.Debug("failed to send DoT query:")
 			if !client.closed.Swap(true) {
 				log.Info("DoT writer closed:", err)
 			}

@@ -59,17 +59,13 @@ func handleTCPClient(conn net.Conn) {
 	defer conn.Close()
 
 	payload, err := readTCPMessage(conn)
-	query := &DNSQuery{
-		payload: payload,
-		srcAddr: conn.RemoteAddr(),
-	}
+	query, newErr := NewDNSQuery(conn.RemoteAddr(), payload)
 	if err != nil {
-		query.done(err)
+		query.LogDone(err)
 		return
 	}
-	query.domain, err = parseDNSDomain(payload)
-	if err != nil {
-		query.done(err)
+	if newErr != nil {
+		query.LogDone(newErr)
 		return
 	}
 
@@ -88,16 +84,16 @@ func handleTCPClient(conn net.Conn) {
 		<-done
 	}
 	if err != nil {
-		query.done(err)
+		query.LogDone(err)
 		return
 	}
 
 	// Send reply
 	if err := writeTCPMessage(conn, reply); err != nil {
-		query.done(err)
+		query.LogDone(err)
 		return
 	}
-	query.done(nil)
+	query.LogDone(nil)
 }
 
 func startTCPListener(address string) {
