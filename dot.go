@@ -13,17 +13,18 @@ import (
 type DoTQuery struct {
 	*DNSQuery
 	callback func([]byte, error)
-	retry    int
 	deadline time.Time
 }
 
 var DoTChan = make(chan *DoTQuery, 16)
 
 func makeDoTQuery(query *DNSQuery, callback func([]byte, error)) {
-	DoTChan <- &DoTQuery{
+	select {
+	case DoTChan <- &DoTQuery{
 		DNSQuery: query,
 		callback: callback,
-		retry:    3,
+	}:
+	default:
 	}
 }
 
@@ -78,9 +79,9 @@ func (c *DoTClient) runReader() {
 	}
 	c.conn.Close()
 
-	// Retry unfinished queries
+	// Drop unfinished queries
 	for query := range c.queries {
-		retryQuery(query)
+		query.callback(nil, errors.New("DoT reader closed"))
 	}
 }
 
@@ -114,20 +115,6 @@ func newDoTClient() (*DoTClient, error) {
 	return client, nil
 }
 
-func retryQuery(query *DoTQuery) {
-	query.retry--
-	if query.retry <= 0 {
-		query.callback(nil, errors.New("Max retries exceeded"))
-		return
-	}
-	select {
-	case DoTChan <- query:
-		log.Info("retry DoT query")
-	default:
-		query.callback(nil, errors.New("DoT channel is full"))
-	}
-}
-
 func runDoTClient() {
 	var client *DoTClient
 
@@ -143,7 +130,7 @@ func runDoTClient() {
 			client, err = newDoTClient()
 			if err != nil {
 				log.Error("failed to create DoT client:", err)
-				retryQuery(query)
+				query.callback(nil, errors.New("DoT client init failed"))
 				continue
 			}
 			isFirstQuery = true
@@ -171,7 +158,7 @@ func runDoTClient() {
 				log.Info("DoT writer closed:", err)
 			}
 			client.conn.Close()
-			retryQuery(query)
+			query.callback(nil, errors.New("DoT writer closed"))
 		}
 	}
 }
